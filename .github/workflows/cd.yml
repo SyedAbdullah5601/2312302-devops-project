@@ -5,21 +5,51 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
+  build-and-ship:
     runs-on: ubuntu-latest
-    needs: []   # Remove this line if you want to require CI to pass first
-
     steps:
-      - name: Deploy to EC2 via SSH
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Compile and Push Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/myapp:latest
+            ${{ secrets.DOCKER_USERNAME }}/myapp:${{ github.sha }}
+
+  deploy-to-cloud:
+    needs: build-and-ship
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Remote Container Updates over SSH
         uses: appleboy/ssh-action@v1
         with:
-          host:     ${{ secrets.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST }}
           username: ubuntu
-          key:      ${{ secrets.EC2_SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/devops-project
-            git pull origin main
-            cp .env.production .env
+            cd ~/devops-project || mkdir -p ~/devops-project && cd ~/devops-project
+
+            # Export secrets into your environment file runtime space
+            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" > .env
+            echo "DB_USER=postgres" >> .env
+            echo "DB_PASSWORD=password" >> .env
+            echo "DB_NAME=student_db" >> .env
+
+            # Pull down the latest production stack profile from your main branch
+            curl -o docker-compose.prod.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml
+
+            # Stop existing components, pull down the fresh image, and run
             docker compose -f docker-compose.prod.yml down
-            docker compose -f docker-compose.prod.yml up -d --build
-            echo "Deployed at $(date)"
+            docker compose -f docker-compose.prod.yml pull web
+            docker compose -f docker-compose.prod.yml up -d
+            docker image prune -f
