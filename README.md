@@ -1,8 +1,8 @@
 # BSCS-2022-001 — DevOps Final Project
 
-> **Student:** BSCS-2022-001
+> **Student:** Syed Abdullah Qadri
 > **Course:** DevOps Fundamentals
-> **Live URL:** http://YOUR_EC2_IP:8000
+> **Live URL:** http://51.20.37.44:8000
 
 ---
 
