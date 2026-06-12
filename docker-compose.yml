@@ -1,31 +1,33 @@
-# ── Local development ────────────────────────────────────
-services:
+version: '3.8'
 
+services:
   db:
-    image: postgres:15
+    image: postgres:15-alpine
+    container_name: devops_postgres_local
     environment:
-      POSTGRES_USER:     ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB:       ${DB_NAME}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local_password
+      POSTGRES_DB: student_db
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   web:
     build: .
+    container_name: devops_fastapi_local
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - DATABASE_URL=postgresql://postgres:local_password@db:5432/student_db
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
-  postgres_data:
+  postgres_local_data:

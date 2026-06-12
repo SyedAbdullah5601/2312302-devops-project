@@ -1,24 +1,27 @@
-# ── Stage: Production image ──────────────────────────────
 FROM python:3.12-slim
 
-# Create a non-root user for security
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-
 # Set working directory
-WORKDIR /app
+WORKDIR /workspace
 
-# Copy requirements first (layer caching — pip install only reruns on change)
+# Install system dependencies if required by your app dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files first to exploit Docker layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create a non-root user and assign permissions
+RUN useradd -m devopsuser && chown -R devopsuser:devopsuser /workspace
+USER devopsuser
+
 # Copy application code
-COPY app/ ./app/
+COPY --chown=devopsuser:devopsuser app/ ./app/
 
-# Switch to non-root user
-USER appuser
-
-# Expose port
+# Expose FastAPI's default port
 EXPOSE 8000
 
-# Start the application
+# Start application pointing to app.main:app
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
